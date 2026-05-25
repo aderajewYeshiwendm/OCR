@@ -1,4 +1,4 @@
-# Document Scan OCR (Amharic Journal)
+# Document Scan OCR (Amharic extractor)
 
 Mobile document scanner with a classical computer-vision pipeline and OCR. Capture journal pages, run **Amharic** OCR on many photos, and export combined text to **Microsoft Word** (.docx).
 
@@ -10,7 +10,7 @@ Mobile document scanner with a classical computer-vision pipeline and OCR. Captu
 
 - Live camera capture and gallery upload (Expo / React Native)
 - **Amharic + English** OCR (`amh+eng` when language pack installed)
-- **Journal mode:** select many photos from the gallery (up to 50 pages)
+- **select many mode:** select many photos from the gallery (up to 50 pages)
 - **Word export:** build a `.docx` with one section per page and share/save on device
 - Server-side pipeline visualization: Original → Canny → Contours → Warped → Threshold
 - Perspective correction when a 4-corner document is detected
@@ -166,7 +166,7 @@ Scan the QR code with Expo Go, or press `a` (Android) / `i` (iOS) for an emulato
 - **Response:** `{ "filename", "docx_base64", "size_bytes" }` (mobile app decodes and shares)
 - **Query:** `as_file=true` returns raw `.docx` download (desktop/curl)
 
-### Journal flow (mobile)
+### select many flow (mobile)
 
 1. Tap **Journal** on the camera screen and select multiple photos.
 2. The app OCRs each page in order (progress shown per page).
