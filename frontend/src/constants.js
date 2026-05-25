@@ -1,5 +1,6 @@
 import { Dimensions } from "react-native";
 
+// Backend FastAPI URL (port 8000). Use your PC's LAN IP — not Metro's 8081.
 export const API_BASE = "http://your-ip-address:8000";
 
 export const { width: SW, height: SH } = Dimensions.get("window");

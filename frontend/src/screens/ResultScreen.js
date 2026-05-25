@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,20 +15,70 @@ import { STEPS } from "../constants";
 import { s } from "../styles";
 import Stat from "../components/Stat";
 import PipelineImage from "../components/PipelineImage";
+import { exportDocx } from "../api/ocr";
 
 export default function ResultScreen({
   fadeIn,
   loading,
+  progress,
   error,
   result,
+  selectedPage,
+  onSelectPage,
   step,
   onStepChange,
   onBack,
   onRetry,
 }) {
+  const [exporting, setExporting] = useState(false);
+  const [textView, setTextView] = useState("combined");
+
+  const isBatch = result?.mode === "batch";
+  const activePage = isBatch
+    ? result.pages?.find((p) => p.page === selectedPage) ?? result.pages?.[0]
+    : null;
+
+  const displayText = isBatch
+    ? textView === "combined"
+      ? result.combined_text
+      : activePage?.extracted_text ?? ""
+    : result?.extracted_text ?? "";
+
+  const wordCount = isBatch ? result.total_word_count : result?.word_count;
   const activeStep = STEPS.find((st) => st.key === step);
   const b64 = result?.pipeline_images?.[step];
-  const imgUri = b64 ? `data:image/png;base64,${b64}` : null;
+  const imgUri = b64 ? `data:image/jpeg;base64,${b64}` : null;
+
+  const handleExportWord = useCallback(async () => {
+    if (!result) return;
+    const pages = isBatch
+      ? result.pages.map((p) => ({ page: p.page, extracted_text: p.extracted_text }))
+      : [{ page: 1, extracted_text: result.extracted_text }];
+
+    const hasText = pages.some((p) => (p.extracted_text || "").trim());
+    if (!hasText) {
+      Alert.alert("No text", "Run OCR on at least one page with readable text first.");
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const { docx_base64, filename } = await exportDocx({
+        title: "Amharic Journal OCR",
+        pages,
+      });
+      const { shareDocxFromBase64 } = await import("../utils/docxShare");
+      await shareDocxFromBase64(docx_base64, filename);
+    } catch (e) {
+      Alert.alert("Export failed", e.message || "Could not create Word file");
+    } finally {
+      setExporting(false);
+    }
+  }, [result, isBatch]);
+
+  const loadLabel = progress
+    ? `Processing page ${progress.current} of ${progress.total}…`
+    : "Running Amharic OCR pipeline…";
 
   return (
     <SafeAreaView style={s.resultRoot}>
@@ -38,7 +88,9 @@ export default function ResultScreen({
         <TouchableOpacity style={s.backBtn} onPress={onBack}>
           <Text style={s.backTxt}>← Back</Text>
         </TouchableOpacity>
-        <Text style={s.headerTitle}>OCR Pipeline</Text>
+        <Text style={s.headerTitle}>
+          {isBatch ? `Journal · ${result?.page_count ?? 0} pages` : "OCR Pipeline"}
+        </Text>
         <View style={{ width: 64 }} />
       </View>
 
@@ -49,8 +101,8 @@ export default function ResultScreen({
         {loading && (
           <View style={s.card}>
             <ActivityIndicator size="large" color="#4A9EFF" />
-            <Text style={s.loadTxt}>Running OCR pipeline…</Text>
-            <Text style={s.loadSub}>Canny → Contour → Warp → Threshold → Tesseract</Text>
+            <Text style={s.loadTxt}>{loadLabel}</Text>
+            <Text style={s.loadSub}>Canny → Contour → Warp → Threshold → Tesseract (amh)</Text>
           </View>
         )}
 
@@ -74,14 +126,75 @@ export default function ResultScreen({
                 value={result.doc_detected ? "Found" : "None"}
                 color={result.doc_detected ? "#00D68F" : "#FF6B35"}
               />
-              <Stat icon="🔤" label="Words" value={result.word_count} color="#4A9EFF" />
+              <Stat icon="🔤" label="Words" value={wordCount ?? 0} color="#4A9EFF" />
               <Stat
                 icon="🎯"
                 label="Confidence"
-                value={`${result.avg_confidence}%`}
+                value={`${result.avg_confidence ?? 0}%`}
                 color="#B15DFF"
               />
             </View>
+
+            {result.ocr_lang && (
+              <Text style={s.langBadge}>OCR: {result.ocr_lang}</Text>
+            )}
+
+            {isBatch && (
+              <>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginTop: 10 }}
+                  contentContainerStyle={s.pageTabs}
+                >
+                  {result.pages.map((p) => (
+                    <TouchableOpacity
+                      key={p.page}
+                      style={[s.pageTab, selectedPage === p.page && s.pageTabActive]}
+                      onPress={() => onSelectPage(p.page)}
+                    >
+                      <Text
+                        style={[
+                          s.pageTabTxt,
+                          selectedPage === p.page && s.pageTabTxtActive,
+                        ]}
+                      >
+                        ገጽ {p.page}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <View style={s.textToggleRow}>
+                  <TouchableOpacity
+                    style={[s.textToggle, textView === "combined" && s.textToggleActive]}
+                    onPress={() => setTextView("combined")}
+                  >
+                    <Text
+                      style={[
+                        s.textToggleTxt,
+                        textView === "combined" && s.textToggleTxtActive,
+                      ]}
+                    >
+                      All pages
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.textToggle, textView === "page" && s.textToggleActive]}
+                    onPress={() => setTextView("page")}
+                  >
+                    <Text
+                      style={[
+                        s.textToggleTxt,
+                        textView === "page" && s.textToggleTxtActive,
+                      ]}
+                    >
+                      Page {selectedPage}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
 
             <ScrollView
               horizontal
@@ -111,7 +224,8 @@ export default function ResultScreen({
 
             <View style={s.imgCard}>
               <Text style={[s.imgCardTitle, { color: activeStep?.color }]}>
-                {activeStep?.icon}  {activeStep?.label}
+                {activeStep?.icon} {activeStep?.label}
+                {isBatch ? " (page 1 preview)" : ""}
               </Text>
               {imgUri ? (
                 <PipelineImage uri={imgUri} />
@@ -124,20 +238,27 @@ export default function ResultScreen({
 
             <View style={s.txtCard}>
               <View style={s.txtHeader}>
-                <Text style={s.txtTitle}>📄 Extracted Text</Text>
-                <TouchableOpacity
-                  onPress={async () => {
-                    await Clipboard.setStringAsync(result.extracted_text || "");
-                    Alert.alert("Copied!");
-                  }}
-                >
-                  <Text style={{ color: "#4A9EFF", fontWeight: "700" }}>Copy</Text>
-                </TouchableOpacity>
+                <Text style={s.txtTitle}>📄 Extracted Text (Amharic)</Text>
+                <View style={s.txtActions}>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      await Clipboard.setStringAsync(displayText || "");
+                      Alert.alert("Copied!");
+                    }}
+                  >
+                    <Text style={s.actionLink}>Copy</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleExportWord} disabled={exporting}>
+                    <Text style={[s.actionLink, exporting && { opacity: 0.5 }]}>
+                      {exporting ? "Word…" : "Word"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <ScrollView style={{ maxHeight: 220, padding: 16 }} nestedScrollEnabled>
-                <Text style={s.txtBody}>
-                  {result.extracted_text?.trim() ||
-                    "(No text detected — try better lighting or hold camera steady)"}
+              <ScrollView style={{ maxHeight: 260, padding: 16 }} nestedScrollEnabled>
+                <Text style={s.txtBodyAmharic}>
+                  {displayText?.trim() ||
+                    "(No text detected — use good lighting and printed Amharic when possible)"}
                 </Text>
               </ScrollView>
             </View>
