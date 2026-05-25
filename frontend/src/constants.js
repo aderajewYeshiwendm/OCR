@@ -1,6 +1,6 @@
 import { Dimensions } from "react-native";
 
-export const API_BASE = "http://10.5.232.236:8000";
+export const API_BASE = "http://your-ip-address:8000";
 
 export const { width: SW, height: SH } = Dimensions.get("window");
 
