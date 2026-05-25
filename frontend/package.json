@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
     "expo": "~54.0.4",
     "expo-camera": "~17.0.10",
     "expo-clipboard": "~8.0.8",
@@ -14,7 +15,8 @@
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-reanimated": "~4.1.1",
-    "react-native-safe-area-context": "~5.6.0"
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-web": "^0.21.0"
   },
   "scripts": {
     "start": "expo start",
